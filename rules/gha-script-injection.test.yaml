@@ -1,0 +1,115 @@
+name: test
+on: [pull_request]
+jobs:
+  vulnerable:
+    runs-on: ubuntu-latest
+    steps:
+      # ruleid: gha-script-injection-run
+      - run: echo "${{ github.event.pull_request.title }}"
+
+      - name: multi-line script
+        # ruleid: gha-script-injection-run
+        run: |
+          set -e
+          echo "building"
+          git checkout ${{ github.head_ref }}
+          make
+
+      # ruleid: gha-script-injection-run
+      - run: echo "${{ github.event.issue.body }}" >> notes.txt
+
+      # ruleid: gha-script-injection-run
+      - run: echo '${{ format('{0}', github.event.comment.body) }}'
+
+      # ruleid: gha-script-injection-run
+      - run: echo "${{github.event.pull_request.head.ref}}"
+
+      # ruleid: gha-script-injection-run
+      - run: echo "${{ github.event.commits[0].message }}"
+
+      # ruleid: gha-script-injection-run
+      - run: echo "${{ join(github.event.commits.*.message, ' ') }}"
+
+      # ruleid: gha-script-injection-run
+      - run: echo "${{ github.event.workflow_run.head_branch }}"
+
+      # ruleid: gha-script-injection-run
+      - run: echo "${{ github.event.head_commit.author.email }}"
+
+      # A predicate elsewhere in the expression must not hide a real use of the value.
+      # ruleid: gha-script-injection-run
+      - run: echo "${{ contains(github.head_ref, 'x') && github.head_ref }}"
+
+      # GitHub expressions are case-insensitive.
+      # ruleid: gha-script-injection-run
+      - run: echo "${{ GitHub.Head_Ref }}"
+
+      # toJSON quotes the string for JSON, not for the shell: still injectable.
+      # ruleid: gha-script-injection-run
+      - run: echo ${{ toJSON(github.event.pull_request.title) }}
+
+      - uses: actions/github-script@v7
+        with:
+          # ruleid: gha-script-injection-github-script
+          script: |
+            const title = "${{ github.event.pull_request.title }}";
+            console.log(title);
+
+      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        with:
+          # ruleid: gha-script-injection-github-script
+          script: console.log('${{ github.head_ref }}')
+
+  safe:
+    runs-on: ubuntu-latest
+    steps:
+      # ok: gha-script-injection-run
+      - run: echo "$TITLE"
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+
+      # ok: gha-script-injection-run
+      - run: echo "${{ github.sha }} ${{ github.run_id }} ${{ github.repository }}"
+
+      # ok: gha-script-injection-run
+      - run: echo "${{ secrets.TOKEN }}"
+
+      # ok: gha-script-injection-run
+      - run: echo "${{ matrix.os }}"
+
+      # ok: gha-script-injection-run
+      - run: echo "branch is $GITHUB_HEAD_REF"
+
+      # ok: gha-script-injection-run
+      - run: echo "${{ github.event.pull_request.number }} ${{ github.event.pull_request.base.ref }}"
+
+      # Boolean-valued expressions: no attacker-controlled text reaches the shell.
+      # (False positives found by running v1 of this rule on a corpus of popular repos.)
+      # ok: gha-script-injection-run
+      - run: if ${{ !contains(toJson(github.event.pull_request.body), '#test-continuous') }}; then echo hi; fi
+
+      # ok: gha-script-injection-run
+      - run: ./gradlew ${{ !startsWith(github.event.head_commit.message, 'Next version') && 'build' || '' }}
+
+      # ok: gha-script-injection-run
+      - run: echo "${{ github.head_ref == 'main' }}"
+
+      # ok: gha-script-injection-run
+      - run: echo "${{ contains(github.head_ref, 'release') }}"
+
+      # Untrusted context in `if:` / `with:` is NOT shell-interpolated; must not be flagged.
+      - if: contains(github.event.pull_request.title, '[skip ci]')
+        # ok: gha-script-injection-run
+        run: echo "ok"
+
+      - uses: actions/github-script@v7
+        with:
+          # ok: gha-script-injection-github-script
+          script: |
+            const title = context.payload.pull_request.title;
+            console.log(title);
+
+      - uses: some-org/other-action@v1
+        with:
+          # ok: gha-script-injection-github-script
+          script: console.log('${{ github.head_ref }}')

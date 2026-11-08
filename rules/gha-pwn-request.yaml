@@ -1,0 +1,56 @@
+rules:
+  - id: gha-pwn-request-checkout
+    languages: [yaml]
+    severity: ERROR
+    message: >-
+      This workflow runs on `pull_request_target` (or `workflow_run`), which executes with a
+      write-capable GITHUB_TOKEN and access to repository secrets, yet it checks out the
+      *pull request's* code. Anything that then executes that code (npm/pip install, make,
+      test runners, local actions, scripts) hands an outside contributor those privileges
+      ("pwn request"). Either use the `pull_request` trigger, or keep this workflow
+      unprivileged and split the untrusted build from the privileged step via artifacts.
+    metadata:
+      category: security
+      cwe: "CWE-829: Inclusion of Functionality from Untrusted Control Sphere"
+      references:
+        - https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/
+      confidence: MEDIUM
+      impact: HIGH
+    patterns:
+      - pattern-either:
+          # on:\n  pull_request_target: ...
+          - pattern-inside: |
+              on:
+                pull_request_target: ...
+              ...
+          # on: pull_request_target
+          - pattern-inside: |
+              on: pull_request_target
+              ...
+          # on: [push, pull_request_target]
+          - pattern-inside: |
+              on: [..., pull_request_target, ...]
+              ...
+          # "on": quoted key (people do this to dodge YAML 1.1's `on: true` quirk)
+          - pattern-inside: |
+              "on":
+                pull_request_target: ...
+              ...
+          - pattern-inside: |
+              "on": pull_request_target
+              ...
+          - pattern-inside: |
+              "on": [..., pull_request_target, ...]
+              ...
+      - pattern-inside: |
+          - uses: $ACTION
+            ...
+      - metavariable-regex:
+          metavariable: $ACTION
+          regex: ^actions/checkout(@.*)?$
+      - pattern: |
+          ref: $REF
+      - metavariable-regex:
+          metavariable: $REF
+          regex: >-
+            (?s).*?(?:github\.event\.pull_request\.head\.(?:sha|ref)|github\.head_ref|refs/pull/|github\.event\.workflow_run\.head_(?:sha|branch))

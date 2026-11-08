@@ -1,0 +1,51 @@
+name: Workflow Injection Guard
+description: Flags GitHub Actions script injection and "pwn request" patterns introduced by a pull request.
+branding:
+  icon: shield
+  color: red
+
+inputs:
+  scope:
+    description: "changed-lines (only lines the PR touched), changed-files, or all (whole repo)."
+    default: changed-lines
+  fail-on:
+    description: "Fail the check on findings of this severity or higher: error, warning, or never."
+    default: error
+  base-sha:
+    description: Base commit of the PR. Defaults to the PR base; empty outside pull_request runs (then everything is scanned).
+    default: ${{ github.event.pull_request.base.sha }}
+  head-sha:
+    description: Head commit to compare. Defaults to the checked-out HEAD.
+    default: HEAD
+  sarif-file:
+    description: Optional path to also write SARIF (for github/codeql-action/upload-sarif).
+    default: ""
+  semgrep-version:
+    description: Pinned Semgrep version installed from PyPI.
+    default: "1.184.0"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: "3.12"
+
+    - name: Install Semgrep
+      shell: bash
+      env:
+        SEMGREP_VERSION: ${{ inputs.semgrep-version }}
+      run: python -m pip install --disable-pip-version-check --quiet "semgrep==${SEMGREP_VERSION}"
+
+    - name: Scan workflows
+      shell: bash
+      # Inputs go through env, never directly into the script body: this action must not be
+      # injectable through its own configuration.
+      env:
+        GUARD_RULES_DIR: ${{ github.action_path }}/rules
+        GUARD_SCOPE: ${{ inputs.scope }}
+        GUARD_FAIL_ON: ${{ inputs.fail-on }}
+        GUARD_BASE_SHA: ${{ inputs.base-sha }}
+        GUARD_HEAD_SHA: ${{ inputs.head-sha }}
+        GUARD_SARIF_OUT: ${{ inputs.sarif-file }}
+      run: python "${GITHUB_ACTION_PATH}/scripts/run_scan.py"
