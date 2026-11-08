@@ -28,7 +28,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: MatthewJunkins445/workflow-injection-guard@<release-sha> # v1.0.0
+      - uses: MatthewJunkins445/workflow-injection-guard@5bc5ca7736213fc408580f87f39bc8c4bd1659b3 # v1.0.0
 ```
 
 Inputs: `scope` (`changed-lines` default / `changed-files` / `all`), `fail-on`
