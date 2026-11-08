@@ -24,11 +24,11 @@ jobs:
   guard:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@<sha>
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: <you>/workflow-injection-guard@<sha>
+      - uses: MatthewJunkins445/workflow-injection-guard@<release-sha> # v1.0.0
 ```
 
 Inputs: `scope` (`changed-lines` default / `changed-files` / `all`), `fail-on`

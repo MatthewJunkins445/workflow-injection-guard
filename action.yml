@@ -1,5 +1,6 @@
 name: Workflow Injection Guard
 description: Flags GitHub Actions script injection and "pwn request" patterns introduced by a pull request.
+author: Matthew Junkins
 branding:
   icon: shield
   color: red
